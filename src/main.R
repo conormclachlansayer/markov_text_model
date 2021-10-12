@@ -1,14 +1,24 @@
-# Ben Anson s2162287
-# Anoushka Ghosh s2223194
-# Conor McLachlan Sayer s1673058
 
-# Setting working directory - commented out when not needed
-#setwd("C:\\Users\\Conor\\OneDrive - University of Edinburgh\\R_Course_Files\\stat-prog\\practical-1")
+
+####################### README
+
+# This imports the bible as a vector of text, cleans it to separate punctuation from text,
+# and then creates a text generating model based on probabilities of frequencies as they appear 
+# in the bible. The default is the top 1000 most common words.
+# The model generates 'new' bible text based on these top 1000 words, and the probabilities that
+# most common word follow each other (this is carried out by creating a m x m matrix, a probability matrix,
+# where m is the length of the most common words vector)
+# Parameters can be changed in lines 253 to 259
+
+#######################
+
+# Setting working directory
+setwd("C:\\Users\\Conor\\OneDrive - University of Edinburgh\\R_Course_Files\\markov_text_model")
 
 # reads the Douay-Rheims bible into a vector of strings, stripping the license
 get_raw_bible_words <- function() {
   # skip license _before_ bible text
-  a <- scan("1581-0.txt", what = "character", skip = 156)
+  a <- scan("data/1581-0.txt", what = "character", skip = 156)
   stopifnot("website" %in% a)
   n <- length(a)
   # skip license _after_ bible text
@@ -16,8 +26,6 @@ get_raw_bible_words <- function() {
   a
 }
 
-
-# Question 4
 # separates punctuation (pun) from a vector of string (text_vector)
 split_punct <- function(text_vector, pun) {
   
@@ -48,7 +56,6 @@ split_punct <- function(text_vector, pun) {
   text_vector_new
 }
 
-# Question 5
 # 'clean' text_vector by moving punctuation out of words
 get_clean_words <- function(text_vector) {
   pun_to_separate <- c(",", ".", ";", "!", ":", "?")
@@ -65,27 +72,26 @@ get_clean_words <- function(text_vector) {
     text_vector
 }
 
-# Question 6
 # try to find m (desired_m) most common words in text_vector (may be slightly more or slightly less than m)
-# Question 9 is contained within this function - to enable set enable_q9_slow= TRUE OR enable_q9_quicker = TRUE (not both)
+# is contained within this function - to enable set enable_q9_slow= TRUE OR enable_q9_quicker = TRUE (not both)
 most_common_words <- function(text_vector,
                               desired_m = 1000,
-                              enable_q9_slow = FALSE,
-                              enable_q9_quicker = TRUE) {
-  # preserve original text with upper case words for question 9
+                              capitalise_freq = FALSE,
+                              capitalise_freq_quicker = TRUE) {
+  # preserve original text with upper case words for  9
   text_vector_orig <- text_vector
   text_vector <- tolower(text_vector)
 
-  # q6(a) unique strings in text_vector
+  # unique strings in text_vector
   b <- unique(text_vector)
-  # q6(b) indices of these 'unique' words in text_vector
+  # indices of these 'unique' words in text_vector
   idxs <- match(text_vector, b)
-  # q6(c) frequency of each unique word
+  # frequency of each unique word
   freq <- tabulate(idxs)
 
-  # q6(d) calculate frequency threshold for top m words: this is 1 - m / # unique words
+  # calculate frequency threshold for top m words: this is 1 - m / # unique words
   threshold <- quantile(freq, probs = c((1 - desired_m / length(b))))
-  # q6(e) keep only those words in b that are equal to or exceed this threshold
+  # keep only those words in b that are equal to or exceed this threshold
   b <- b[which(freq >= threshold)]
 
   # checks if string x has capitalised first letter (for q9)
@@ -105,12 +111,11 @@ most_common_words <- function(text_vector,
       paste(toupper(substr(x, 1, 1)), tolower(substr(x, 2, len)), sep = "")
     }
   }
+
   
-  # Question 9
   # if a common word more often starts with a capital, make sure all occurrences start with a capital!
   # Only do this calculation for common words because only common words will appear in our simulation
-  
-  if (enable_q9_slow) {
+  if (capitalise_freq) {
     # idea:   for each common word, count number of occurrences starting a capital versus not.
     #         if word starts with capitals more, perform a replacement
     # note:   time complexity - O(m * text length)
@@ -126,7 +131,7 @@ most_common_words <- function(text_vector,
         text_vector[capitalized_w_idxs] <- capitalized_w
       }
     }
-  } else if (enable_q9_quicker) {
+  } else if (capitalise_freq_quicker) {
     # idea:   similar to above, but accumulate a mapping of each word in b to a counter.
     #         the counter is incremented each time the word starts with a capital in the main text,
     #         and decremented each time it starts with a lower letter. this means that the counters
@@ -180,7 +185,6 @@ most_common_words <- function(text_vector,
   list(a = text_vector, b = b)
 }
 
-# Question 7
 # find probability matrix A[i,j]
 # A[i,j] is the probability that word b[j] follows b[i]
 # two inputs: a (text_vector); and b (common_words)
@@ -189,23 +193,19 @@ mk_A <- function(text_vector, common_words) {
   # m might not be exactly 1000, so infer it from our list of common words
   m <- length(common_words)
 
-  # q7(a)
   # find positions of most common words as they appear in text_vector
   top_freq_bible_index <- match(text_vector, common_words)
 
-  # q7(b)
   # shift top_freq_bible_index to get position of j follows i
   # column 1: take 1:length(top_freq_bible_index)-1 (as the last word does not have anything following)
   # column 2: take 2:length(top_freq_bible_index) of the vector top_freq_bible_index
   paired_words_index <-
     cbind(top_freq_bible_index[1:length(top_freq_bible_index) - 1], top_freq_bible_index[2:length(top_freq_bible_index)])
 
-  # q7(c)
   # remove pairs where an NA exists.
   # In R, a numeric + NA = NA, and NA + NA = NA, numeric + numeric = numeric
   paired_words_index <- paired_words_index[!is.na(rowSums(paired_words_index)),]
 
-  # q7(d)
   # initialize probability matrix with 0's
   A <- matrix(0, nrow = m, ncol = m)
   d <- dim(A)
@@ -224,11 +224,10 @@ mk_A <- function(text_vector, common_words) {
     A[i + (j - 1) * d[1]] <- A[i + (j - 1) * d[1]] + 1
   }
 
-  # q7(e) standardise rows of A to probabilities, so each rows sum is equal to 1
+  # standardise rows of A to probabilities, so each rows sum is equal to 1
   A / rowSums(A)
 }
 
-# Question 8
 # 3 inputs: a probability matrix A, a most common words vector b, and the length of text to be simulated as n (default n = 50)
 simulate_section <- function(A, b, n = 50) {
   # like in q7, infer m
@@ -249,15 +248,12 @@ simulate_section <- function(A, b, n = 50) {
   cat(simulated_words)
 }
 
-# entry point for our program
-main <- function() {
-  a <- get_raw_bible_words()
-  a <- get_clean_words(text_vector = a)
-  res <- most_common_words(text_vector = a, desired_m = 1000)
-  a <- res$a
-  b <- res$b
-  A <- mk_A(text_vector = a, b)
-  simulate_section(A = A, b = b, n = 50)
-}
+# Running our markov text model
 
-main()
+a <- get_raw_bible_words()
+a <- get_clean_words(text_vector = a)
+res <- most_common_words(text_vector = a, desired_m = 1000)
+a <- res$a
+b <- res$b
+A <- mk_A(text_vector = a, b)
+simulate_section(A = A, b = b, n = 50)
